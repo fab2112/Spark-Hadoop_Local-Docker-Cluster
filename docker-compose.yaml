@@ -1,0 +1,196 @@
+# Spark-Hadoop_Local-Docker-Cluster
+
+version: "3.7"
+
+services:
+
+  # HADOOP-CLUSTER
+
+  hadoop-namenode:
+    image: apache/hadoop:3.3.5
+    container_name: hadoop-namenode
+    hostname: namenode
+    command: ["hdfs", "namenode"]
+    ports:
+      - 9870:9870
+    env_file:
+      - ./hadoop_config
+    environment:
+        ENSURE_NAMENODE_DIR: "/tmp/hadoop-root/dfs/name"
+    volumes:
+      - hadoop-namenode:/data
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.2
+
+  hadoop-datanode_1:
+    image: apache/hadoop:3.3.5
+    container_name: hadoop-datanode_1
+    hostname: "172.25.0.3"
+    command: ["hdfs", "datanode"]
+    env_file:
+      - ./hadoop_config
+    volumes:
+      - hadoop-datanode-1:/data
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.3
+  
+  hadoop-datanode_2:
+    image: apache/hadoop:3.3.5
+    container_name: hadoop-datanode_2
+    hostname: "172.25.0.4"
+    command: ["hdfs", "datanode"]
+    env_file:
+      - ./hadoop_config
+    volumes:
+      - hadoop-datanode-2:/data
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.4
+
+  hadoop-datanode_3:
+    image: apache/hadoop:3.3.5
+    container_name: hadoop-datanode_3
+    hostname: "172.25.0.5"
+    command: ["hdfs", "datanode"]
+    env_file:
+      - ./hadoop_config
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.5
+    volumes:
+      - hadoop-datanode-3:/data
+
+  hadoop-resourcemanager:
+    image: apache/hadoop:3.3.5
+    container_name: hadoop-resourcemanager
+    hostname: resourcemanager
+    command: ["yarn", "resourcemanager"]
+    ports:
+      - 8088:8088
+    env_file:
+      - ./hadoop_config
+    volumes:
+      #- ./test.sh:/opt/test.sh
+      - hadoop-resourcemanager:/data
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.6
+      
+  hadoop-nodemanager:
+      image: apache/hadoop:3.3.5
+      container_name: hadoop-nodemanager
+      hostname: "172.25.0.7" 
+      command: ["yarn", "nodemanager"]
+      env_file:
+        - ./hadoop_config
+      volumes:
+        - hadoop-nodemanager:/data
+      networks:
+        hadoopspark-net:
+          ipv4_address: 172.25.0.7
+
+  # SPARK-CLUSTER
+
+  spark-master:
+    image: bitnami/spark:3.5.0
+    container_name: spark-master
+    hostname: "172.25.0.8"
+    environment:
+      SPARK_MODE: master
+    ports:
+      - 8080:8080
+      - 7077:7077
+      - 4040:4040
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.8
+
+  spark-worker-1:
+    image: bitnami/spark:3.5.0
+    container_name: spark-work1
+    hostname: "172.25.0.9"
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_MASTER_URL: spark://spark-master:7077
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.9
+
+  spark-worker-2:
+    image: bitnami/spark:3.5.0
+    container_name: spark-work2
+    hostname: "172.25.0.10"
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_MASTER_URL: spark://spark-master:7077
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.10
+      
+  spark-worker-3:
+    image: bitnami/spark:3.5.0
+    container_name: spark-work3
+    hostname: "172.25.0.11"
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_MASTER_URL: spark://spark-master:7077
+    networks:
+      hadoopspark-net:
+        ipv4_address: 172.25.0.11
+  
+  # JUPYTER-LAB
+
+  jupyter-lab:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: jupyter-lab
+    hostname: "172.25.0.12"
+    ports:
+      - 8888:8888
+    user: 0:0
+    working_dir: /work
+    command: start-notebook.sh --NotebookApp.token='' --NotebookApp.password='' 
+      --ServerApp.iopub_data_rate_limit=50_000_000
+    environment:
+      NB_USER: jupyter_user
+      CHOWN_HOME: "yes"
+      PYARROW_IGNORE_TIMEZONE: 1
+    volumes:
+      - ./work:/work
+    networks:
+       hadoopspark-net:
+        ipv4_address: 172.25.0.12
+
+volumes:
+  hadoop-datanode-1:
+    external: False
+  hadoop-datanode-2:
+    external: False
+  hadoop-datanode-3:
+    external: False
+  hadoop-namenode:
+    external: False
+  hadoop-resourcemanager:
+    external: False
+  hadoop-nodemanager:
+    external: False
+
+networks:
+  hadoopspark-net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.0.0/24
+          gateway: 172.25.0.1
